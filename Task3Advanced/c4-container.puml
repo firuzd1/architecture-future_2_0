@@ -1,0 +1,89 @@
+@startuml c4-container
+!include <C4/C4_Container>
+
+title Будущее 2.0 - целевая архитектура (3 года), контейнеры
+
+Person(doctor, "Врач / оператор клиники")
+Person(client, "Пациент / клиент банка")
+Person(analyst, "Бизнес-пользователь / аналитик")
+
+System_Boundary(clinic, "Домен Клиники") {
+  Container(clinic_ui, "Web-кабинет клиники", "React", "замена PowerBuilder")
+  Container(patient_svc, "Пациентский поток", "C# .NET", "регистрация, записи, визиты")
+  ContainerDb(medrec_db, "Медкарты и исследования", "PostgreSQL", "в витрину не идут")
+}
+
+System_Boundary(ai, "Домен ИИ-сервисы") {
+  Container(ai_svc, "ИИ-диагностика", "Python", "анализ исследований")
+  ContainerDb(ai_store, "Хранилище моделей и результатов", "S3")
+}
+
+System_Boundary(fin, "Домен Финтех") {
+  Container(fin_svc, "Финтех-сервисы", "Go / Java", "счета, платежи, кредиты")
+  ContainerDb(fin_db, "Банковские данные", "PostgreSQL")
+}
+
+System_Boundary(hq, "Домен Головной офис") {
+  Container(hq_svc, "HR, инвентаризация, фин отчетность", "C# .NET")
+  ContainerDb(hq_db, "Данные офиса", "PostgreSQL")
+}
+
+System_Boundary(newdom, "Новые домены") {
+  Container(pharma_svc, "Фарма", "сервисы партнера", "подключается через события")
+  Container(device_svc, "Медтехника", "IoT gateway", "телеметрия оборудования")
+}
+
+System_Boundary(platform, "Интеграционная платформа") {
+  Container(kafka, "Event backbone", "Kafka", "доменные события, DLQ")
+  Container(schema_reg, "Schema Registry", "Avro", "контракты событий")
+  Container(iam, "IAM", "Keycloak", "SSO, роли, атрибуты доступа")
+}
+
+System_Boundary(data, "Data-платформа (Data Mesh)") {
+  Container(stream, "Потоковая обработка", "Flink", "near-real-time витрины")
+  ContainerDb(lake, "Lakehouse", "Object Storage + Iceberg", "data products доменов")
+  ContainerDb(olap, "Аналитическая БД", "ClickHouse", "быстрые отчеты")
+  Container(catalog, "Каталог данных", "DataHub", "владельцы, схемы, lineage")
+  Container(portal, "Портал самообслуживания", "Superset / DataLens", "отчеты и конструктор")
+}
+
+System_Boundary(legacy, "Легаси (мосты на время миграции)") {
+  Container(acl, "Anti-corruption layer", "C# .NET", "перевод легаси в события")
+  Container(cdc, "CDC", "Debezium", "изменения из DWH в Kafka")
+  ContainerDb(dwh, "DWH", "SQL Server 2008", "выводится из эксплуатации")
+  Container(esb, "ESB", "Apache Camel", "выводится из эксплуатации")
+}
+
+Rel(doctor, clinic_ui, "работает", "HTTPS")
+Rel(clinic_ui, patient_svc, "API", "HTTPS")
+Rel(patient_svc, medrec_db, "читает/пишет")
+Rel(client, fin_svc, "мобильный банк", "HTTPS")
+Rel(analyst, portal, "отчеты", "HTTPS")
+
+Rel(patient_svc, kafka, "события пациента")
+Rel(ai_svc, kafka, "события диагностики")
+Rel(kafka, ai_svc, "запрос на анализ")
+Rel(ai_svc, ai_store, "результаты")
+Rel(fin_svc, kafka, "события счетов и кредитов")
+Rel(fin_svc, fin_db, "читает/пишет")
+Rel(hq_svc, kafka, "события HR и склада")
+Rel(hq_svc, hq_db, "читает/пишет")
+Rel(pharma_svc, kafka, "поставки, рецепты")
+Rel(device_svc, kafka, "телеметрия")
+
+Rel(kafka, schema_reg, "проверка схем")
+Rel(kafka, stream, "поток событий")
+Rel(stream, lake, "data products")
+Rel(stream, olap, "витрины")
+Rel(catalog, lake, "метаданные")
+Rel(portal, olap, "запросы")
+Rel(portal, catalog, "поиск данных")
+Rel(portal, iam, "права доступа")
+
+Rel(dwh, cdc, "изменения")
+Rel(cdc, kafka, "события")
+Rel(esb, acl, "сообщения")
+Rel(acl, kafka, "события")
+
+SHOW_LEGEND()
+@enduml
