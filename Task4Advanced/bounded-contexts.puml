@@ -1,0 +1,87 @@
+@startuml bounded-contexts
+title Будущее 2.0 - bounded contexts
+
+skinparam rectangle {
+  RoundCorner 15
+}
+skinparam packageStyle rectangle
+
+package "Домен Клиники (core)" #E3F2FD {
+  rectangle "Регистрация пациентов\n(Patient Registry)" as registry
+  rectangle "Пациентский поток\n(Visits & Appointments)" as visits
+  rectangle "Медкарты и исследования\n(Medical Records)" as medrec
+}
+
+package "Домен ИИ-сервисы (core)" #EDE7F6 {
+  rectangle "ИИ-диагностика\n(AI Diagnostics)" as ai
+}
+
+package "Домен Финтех (core)" #E8F5E9 {
+  rectangle "Счета и платежи\n(Accounts & Payments)" as payments
+  rectangle "Кредиты\n(Lending)" as lending
+  rectangle "Расчеты за услуги\n(Medical Billing)" as billing
+}
+
+package "Домен Головной офис (supporting)" #FFF8E1 {
+  rectangle "Персонал\n(HR)" as hr
+  rectangle "Склад и инвентарь\n(Inventory)" as inventory
+  rectangle "Фин отчетность\n(Corporate Reporting)" as reporting
+}
+
+package "Новые домены" #FCE4EC {
+  rectangle "Фарма\n(Pharma Supply)" as pharma
+  rectangle "Медтехника\n(Device Telemetry)" as devices
+}
+
+package "Generic" #ECEFF1 {
+  rectangle "Доступ и роли\n(Identity & Access)" as iam
+  rectangle "Аналитика и витрины\n(Data Products / Portal)" as analytics
+}
+
+package "Легаси" #EEEEEE {
+  rectangle "DWH SQL Server" as dwh
+  rectangle "ESB Camel" as esb
+}
+
+registry --> visits : PL: ПациентЗарегистрирован
+registry --> payments : PL: ПациентЗарегистрирован\n(открыть счет клиента)
+visits --> medrec : C/S: ВизитЗавершен
+visits --> billing : PL: УслугаОказана
+medrec --> ai : PL: ИсследованиеЗагружено
+ai --> medrec : PL: ИИАнализЗавершен
+billing --> payments : PL: СчетВыставлен
+payments --> billing : PL: ПлатежПроведен
+lending --> payments : PL: КредитВыдан
+billing --> lending : PL: ЗапрошенаРассрочка
+visits --> inventory : PL: МатериалыСписаны
+pharma --> inventory : PL: ПоставкаПолучена
+inventory --> pharma : PL: ЗапасНижеМинимума
+devices --> inventory : PL: ОборудованиеНеисправно
+hr --> visits : PL: ГрафикВрачаИзменен
+
+payments ..> reporting : события
+billing ..> reporting : события
+hr ..> reporting : события
+inventory ..> reporting : события
+
+registry ..> analytics : data product
+visits ..> analytics : data product
+billing ..> analytics : data product
+payments ..> analytics : data product
+lending ..> analytics : data product
+inventory ..> analytics : data product
+reporting ..> analytics : data product
+
+iam ..> analytics : OHS: права доступа
+
+dwh ..> reporting : ACL (CDC)
+esb ..> payments : ACL
+
+legend right
+  PL - published language (событие в Kafka по схеме из Schema Registry)
+  C/S - customer/supplier
+  OHS - open host service
+  ACL - anti-corruption layer к легаси
+  Медкарты и ИИ не отдают data product в аналитику
+endlegend
+@enduml
