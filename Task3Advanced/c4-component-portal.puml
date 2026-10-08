@@ -1,0 +1,44 @@
+@startuml c4-component-portal
+!include <C4/C4_Component>
+
+title Портал самообслуживания - компоненты
+
+Person(analyst, "Бизнес-пользователь / аналитик")
+
+Container_Boundary(portal, "Портал самообслуживания") {
+  Component(web, "Web UI", "React", "каталог отчетов, дашборды, конструктор")
+  Component(gateway, "API Gateway", "C# .NET", "единая точка входа, проверка токена")
+  Component(report_svc, "Report Service", "C# .NET", "готовые отчеты, расписание, экспорт")
+  Component(builder, "Report Builder", "C# .NET", "конструктор своих отчетов из полей семантического слоя")
+  Component(semantic, "Семантический слой", "Cube", "метрики и измерения в бизнес-терминах, одинаковые для всех доменов")
+  Component(access, "Access Policy", "OPA", "row-level и column-level доступ по роли, домену и региону")
+  Component(query, "Query Engine", "Trino", "запросы к витринам доменов")
+  Component(cache, "Кеш результатов", "Redis", "частые отчеты")
+  Component(audit, "Audit", "C# .NET", "кто что смотрел и выгружал")
+}
+
+Container(iam, "IAM", "Keycloak", "пользователи, роли, атрибуты")
+Container(catalog, "Каталог данных", "DataHub", "data products, владельцы, схемы")
+ContainerDb(olap, "Аналитическая БД", "ClickHouse", "витрины доменов")
+ContainerDb(lake, "Lakehouse", "Object Storage + Iceberg", "исторические данные")
+Container(kafka, "Event backbone", "Kafka")
+
+Rel(analyst, web, "работает", "HTTPS")
+Rel(web, iam, "логин", "OIDC")
+Rel(web, gateway, "API", "HTTPS + JWT")
+Rel(gateway, report_svc, "готовые отчеты")
+Rel(gateway, builder, "свои отчеты")
+Rel(report_svc, semantic, "запрос метрик")
+Rel(builder, semantic, "запрос метрик")
+Rel(builder, catalog, "какие data products доступны")
+Rel(semantic, access, "проверка прав")
+Rel(access, iam, "роли и атрибуты")
+Rel(semantic, cache, "кеш")
+Rel(semantic, query, "SQL")
+Rel(query, olap, "свежие данные")
+Rel(query, lake, "история")
+Rel(gateway, audit, "события доступа")
+Rel(audit, kafka, "audit события")
+
+SHOW_LEGEND()
+@enduml

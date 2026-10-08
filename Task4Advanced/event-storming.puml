@@ -1,0 +1,125 @@
+@startuml event-storming
+title Будущее 2.0 - Event Storming (целевое состояние)
+left to right direction
+
+skinparam rectangle {
+  RoundCorner 5
+  FontSize 11
+}
+
+' цвета
+' actor #FFF59D, command #90CAF9, aggregate #FFF9C4,
+' event #FFB74D, policy #CE93D8, external #F48FB1
+
+package "Клиники: Регистрация" {
+  rectangle "Оператор" as a1 #FFF59D
+  rectangle "Зарегистрировать\nпациента" as c1 #90CAF9
+  rectangle "Пациент" as ag1 #FFF9C4
+  rectangle "ПациентЗарегистрирован" as e1 #FFB74D
+}
+
+package "Клиники: Пациентский поток" {
+  rectangle "Записать на прием" as c2 #90CAF9
+  rectangle "Визит" as ag2 #FFF9C4
+  rectangle "ПриемНазначен" as e2 #FFB74D
+  rectangle "Врач" as a2 #FFF59D
+  rectangle "Завершить визит" as c3 #90CAF9
+  rectangle "ВизитЗавершен" as e3 #FFB74D
+  rectangle "УслугаОказана" as e4 #FFB74D
+  rectangle "МатериалыСписаны" as e5 #FFB74D
+}
+
+package "Клиники: Медкарты" {
+  rectangle "Загрузить исследование" as c4 #90CAF9
+  rectangle "Исследование" as ag3 #FFF9C4
+  rectangle "ИсследованиеЗагружено" as e6 #FFB74D
+}
+
+package "ИИ-сервисы" {
+  rectangle "Когда исследование загружено\n-> запустить анализ" as p1 #CE93D8
+  rectangle "Анализ ИИ" as ag4 #FFF9C4
+  rectangle "ИИАнализЗавершен" as e7 #FFB74D
+  rectangle "ИИАнализНеУдался" as e7b #FFB74D
+}
+
+package "Финтех: Расчеты" {
+  rectangle "Когда услуга оказана\n-> выставить счет" as p2 #CE93D8
+  rectangle "Счет" as ag5 #FFF9C4
+  rectangle "СчетВыставлен" as e8 #FFB74D
+  rectangle "Пациент / клиент" as a3 #FFF59D
+  rectangle "Оплатить счет" as c5 #90CAF9
+  rectangle "Запросить рассрочку" as c6 #90CAF9
+}
+
+package "Финтех: Платежи и кредиты" {
+  rectangle "Платеж" as ag6 #FFF9C4
+  rectangle "ПлатежПроведен" as e9 #FFB74D
+  rectangle "Скоринг" as x1 #F48FB1
+  rectangle "Кредитный договор" as ag7 #FFF9C4
+  rectangle "КредитныйДоговорСоздан" as e10 #FFB74D
+  rectangle "КредитВыдан" as e11 #FFB74D
+  rectangle "Когда платеж проведен\n-> закрыть счет" as p3 #CE93D8
+  rectangle "СчетОплачен" as e12 #FFB74D
+}
+
+package "Офис и фарма: Склад" {
+  rectangle "Когда материалы списаны\n-> уменьшить остаток" as p4 #CE93D8
+  rectangle "Складская позиция" as ag8 #FFF9C4
+  rectangle "ЗапасНижеМинимума" as e13 #FFB74D
+  rectangle "Когда запас ниже минимума\n-> заказ у фармы" as p5 #CE93D8
+  rectangle "Фарма-партнер" as x2 #F48FB1
+  rectangle "ПоставкаПолучена" as e14 #FFB74D
+}
+
+a1 --> c1
+c1 --> ag1
+ag1 --> e1
+e1 --> c2
+c2 --> ag2
+ag2 --> e2
+a2 --> c3
+c3 --> ag2
+ag2 --> e3
+ag2 --> e4
+ag2 --> e5
+
+a2 --> c4
+c4 --> ag3
+ag3 --> e6
+e6 --> p1
+p1 --> ag4
+ag4 --> e7
+ag4 --> e7b
+
+e4 --> p2
+p2 --> ag5
+ag5 --> e8
+e8 --> a3
+a3 --> c5
+a3 --> c6
+c5 --> ag6
+ag6 --> e9
+e9 --> p3
+p3 --> ag5
+ag5 --> e12
+c6 --> x1
+x1 --> ag7
+ag7 --> e10
+ag7 --> e11
+e11 --> ag6
+
+e5 --> p4
+p4 --> ag8
+ag8 --> e13
+e13 --> p5
+p5 --> x2
+x2 --> e14
+e14 --> ag8
+
+legend right
+  желтый - актор, синий - команда, светлый - агрегат
+  оранжевый - доменное событие, фиолетовый - политика
+  розовый - внешняя система
+  ИИАнализНеУдался уходит в DLQ и на ручной разбор
+endlegend
+@enduml
