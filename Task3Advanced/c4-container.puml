@@ -9,7 +9,7 @@ Person(analyst, "Бизнес-пользователь / аналитик")
 
 System_Boundary(clinic, "Домен Клиники") {
   Container(clinic_ui, "Web-кабинет клиники", "React", "замена PowerBuilder")
-  Container(patient_svc, "Пациентский поток", "C# .NET", "регистрация, записи, визиты")
+  Container(patient_svc, "Пациентский поток", "C# .NET", "регистрация, визиты, ФЛК своих данных, outbox")
   ContainerDb(medrec_db, "Медкарты и исследования", "PostgreSQL", "в витрину не идут")
 }
 
@@ -19,7 +19,7 @@ System_Boundary(ai, "Домен ИИ-сервисы") {
 }
 
 System_Boundary(fin, "Домен Финтех") {
-  Container(fin_svc, "Финтех-сервисы", "Go / Java", "счета, платежи, кредиты")
+  Container(fin_svc, "Финтех-сервисы", "Go / Java", "счета, платежи, кредиты, саги, outbox")
   ContainerDb(fin_db, "Банковские данные", "PostgreSQL")
 }
 
@@ -28,19 +28,20 @@ System_Boundary(hq, "Домен Головной офис") {
   ContainerDb(hq_db, "Данные офиса", "PostgreSQL")
 }
 
-System_Boundary(newdom, "Новые домены") {
-  Container(pharma_svc, "Фарма", "сервисы партнера", "подключается через события")
-  Container(device_svc, "Медтехника", "IoT gateway", "телеметрия оборудования")
-}
+System_Ext(pharma, "Фарма-партнеры", "SOAP / REST / SFTP-файлы")
+System_Ext(devices, "Медтехника", "телеметрия, HL7 / MQTT")
 
-System_Boundary(platform, "Интеграционная платформа") {
-  Container(kafka, "Event backbone", "Kafka", "доменные события, DLQ")
-  Container(schema_reg, "Schema Registry", "Avro", "контракты событий")
+System_Boundary(integration, "Интеграционный слой") {
+  Container(gateway, "Integration Gateway", "Camel Quarkus", "адаптеры протоколов, ФЛК внешних данных, маршрутизация, ретраи, circuit breaker. Без бизнес-логики")
+  Container(connect, "Kafka Connect", "коннекторы", "S3, JDBC, Debezium")
+  Container(kafka, "Event backbone", "Kafka", "транспорт событий, retry-топики, DLQ")
+  Container(schema_reg, "Schema Registry", "Avro", "ФЛК формата, контракты событий")
+  Container(batch, "Пакетные задачи", "Airflow + dbt", "сверки, ночные расчеты, файлы партнеров")
   Container(iam, "IAM", "Keycloak", "SSO, роли, атрибуты доступа")
 }
 
 System_Boundary(data, "Data-платформа (Data Mesh)") {
-  Container(stream, "Потоковая обработка", "Flink", "near-real-time витрины")
+  Container(stream, "Потоковая обработка", "Flink / Kafka Streams", "потоковые трансформации, near-real-time витрины")
   ContainerDb(lake, "Lakehouse", "Object Storage + Iceberg", "data products доменов")
   ContainerDb(olap, "Аналитическая БД", "ClickHouse", "быстрые отчеты")
   Container(catalog, "Каталог данных", "DataHub", "владельцы, схемы, lineage")
@@ -48,10 +49,9 @@ System_Boundary(data, "Data-платформа (Data Mesh)") {
 }
 
 System_Boundary(legacy, "Легаси (мосты на время миграции)") {
-  Container(acl, "Anti-corruption layer", "C# .NET", "перевод легаси в события")
-  Container(cdc, "CDC", "Debezium", "изменения из DWH в Kafka")
-  ContainerDb(dwh, "DWH", "SQL Server 2008", "выводится из эксплуатации")
-  Container(esb, "ESB", "Apache Camel", "выводится из эксплуатации")
+  Container(acl, "Anti-corruption layer", "C# .NET", "перевод легаси-сообщений в события")
+  ContainerDb(dwh, "DWH", "SQL Server 2008", "выводится по доменам")
+  Container(esb, "ESB", "Apache Camel", "маршруты переносятся по одному, см. esb-decomposition.md")
 }
 
 Rel(doctor, clinic_ui, "работает", "HTTPS")
@@ -68,22 +68,29 @@ Rel(fin_svc, kafka, "события счетов и кредитов")
 Rel(fin_svc, fin_db, "читает/пишет")
 Rel(hq_svc, kafka, "события HR и склада")
 Rel(hq_svc, hq_db, "читает/пишет")
-Rel(pharma_svc, kafka, "поставки, рецепты")
-Rel(device_svc, kafka, "телеметрия")
+
+Rel(pharma, gateway, "поставки, рецепты", "SOAP / SFTP")
+Rel(devices, gateway, "телеметрия", "HL7 / MQTT")
+Rel(gateway, kafka, "валидные события")
+Rel(gateway, schema_reg, "проверка схем")
 
 Rel(kafka, schema_reg, "проверка схем")
 Rel(kafka, stream, "поток событий")
 Rel(stream, lake, "data products")
 Rel(stream, olap, "витрины")
+Rel(batch, lake, "пакетные трансформации")
+Rel(batch, olap, "сверки, агрегаты")
+Rel(connect, kafka, "источники и приемники")
+Rel(connect, lake, "выгрузка в S3")
 Rel(catalog, lake, "метаданные")
 Rel(portal, olap, "запросы")
 Rel(portal, catalog, "поиск данных")
 Rel(portal, iam, "права доступа")
 
-Rel(dwh, cdc, "изменения")
-Rel(cdc, kafka, "события")
-Rel(esb, acl, "сообщения")
+Rel(dwh, connect, "CDC (Debezium)")
+Rel(esb, acl, "сообщения непереехавших маршрутов")
 Rel(acl, kafka, "события")
+Rel(batch, dwh, "сверка на переходе")
 
 SHOW_LEGEND()
 @enduml
